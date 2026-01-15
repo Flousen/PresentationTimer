@@ -7,9 +7,10 @@ import threading
 import queue
 
 class SteadyTopTimer:
-    def __init__(self, duration_minutes=10, server_url=None, auth_token=None):
+    def __init__(self, duration_minutes=10, server_url=None, auth_token=None, ca_cert=None):
         self.server_url = server_url
         self.auth_token = auth_token
+        self.ca_cert = ca_cert
         
         self.monitors = get_monitors()
         self.windows = []
@@ -74,6 +75,7 @@ class SteadyTopTimer:
                         f"{self.server_url}/status",
                         timeout=0.5,
                         headers=headers,
+                        verify=self.ca_cert or True,
                     )
                     if response.status_code == 200:
                         cmd = response.json().get("last_command")
@@ -81,7 +83,7 @@ class SteadyTopTimer:
                             self.cmd_queue.put(cmd)
                 except Exception:
                     pass
-                self.poll_stop.wait(1.0)
+                self.poll_stop.wait(0.5)
 
         t = threading.Thread(target=_poll_loop, daemon=True)
         t.start()
@@ -146,10 +148,20 @@ if __name__ == "__main__":
     parser.add_argument("--duration-minutes", type=int, default=10)
     parser.add_argument("--server-url", default=None)
     parser.add_argument("--auth-token", default=None)
+    parser.add_argument(
+        "--ca-cert",
+        default=None,
+        help="Path to CA or self-signed cert PEM to trust for HTTPS",
+    )
     args = parser.parse_args()
+    if args.server_url and not args.auth_token:
+        parser.error("--auth-token is required when --server-url is set")
+    if args.server_url and not args.ca_cert:
+        parser.error("--ca-cert is required when --server-url is set")
 
     SteadyTopTimer(
         duration_minutes=args.duration_minutes,
         server_url=args.server_url,
         auth_token=args.auth_token,
+        ca_cert=args.ca_cert,
     )

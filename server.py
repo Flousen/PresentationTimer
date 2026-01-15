@@ -1,5 +1,5 @@
 import argparse
-from flask import Flask, jsonify, render_template_string, request, abort
+from flask import Flask, jsonify, render_template_string, request, abort, redirect, url_for
 
 app = Flask(__name__)
 
@@ -42,7 +42,7 @@ AUTH_TOKEN = None
 
 def require_token():
     if not AUTH_TOKEN:
-        return
+        abort(500, description="Server requires --auth-token")
     token = (
         request.headers.get("X-Auth-Token")
         or request.args.get("token")
@@ -67,21 +67,29 @@ def get_status():
 def trigger_toggle():
     require_token()
     timer_state["last_command"] = "toggle"
-    # Redirect back to home if accessed via browser button
-    return render_template_string(HTML_PAGE, token=AUTH_TOKEN or "")
+    token = request.args.get("token") or request.form.get("token") or ""
+    return redirect(url_for("index", token=token))
 
 @app.route('/reset', methods=['GET', 'POST'])
 def trigger_reset():
     require_token()
     timer_state["last_command"] = "reset"
-    return render_template_string(HTML_PAGE, token=AUTH_TOKEN or "")
+    token = request.args.get("token") or request.form.get("token") or ""
+    return redirect(url_for("index", token=token))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--auth-token", default=None)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=5000)
+    parser.add_argument("--cert", default=None, help="Path to TLS certificate (PEM)")
+    parser.add_argument("--key", default=None, help="Path to TLS private key (PEM)")
     args = parser.parse_args()
 
     AUTH_TOKEN = args.auth_token
-    app.run(host=args.host, port=args.port)
+    ssl_context = None
+    if args.cert or args.key:
+        if not (args.cert and args.key):
+            parser.error("--cert and --key must be provided together")
+        ssl_context = (args.cert, args.key)
+    app.run(host=args.host, port=args.port, ssl_context=ssl_context)
