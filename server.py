@@ -1,4 +1,5 @@
-from flask import Flask, jsonify, render_template_string
+import argparse
+from flask import Flask, jsonify, render_template_string, request, abort
 
 app = Flask(__name__)
 
@@ -26,35 +27,61 @@ HTML_PAGE = """
 <body>
     <h1>Timer Remote</h1>
     <form action="/toggle" method="POST">
+        <input type="hidden" name="token" value="{{ token }}">
         <button type="submit" class="btn btn-toggle">START / PAUSE</button>
     </form>
     <form action="/reset" method="POST">
+        <input type="hidden" name="token" value="{{ token }}">
         <button type="submit" class="btn btn-reset">RESET</button>
     </form>
 </body>
 </html>
 """
 
+AUTH_TOKEN = None
+
+def require_token():
+    if not AUTH_TOKEN:
+        return
+    token = (
+        request.headers.get("X-Auth-Token")
+        or request.args.get("token")
+        or request.form.get("token")
+    )
+    if token != AUTH_TOKEN:
+        abort(403)
+
 @app.route('/')
 def index():
-    return render_template_string(HTML_PAGE)
+    require_token()
+    return render_template_string(HTML_PAGE, token=AUTH_TOKEN or "")
 
 @app.route('/status', methods=['GET'])
 def get_status():
+    require_token()
     response = jsonify(timer_state.copy())
     timer_state["last_command"] = None 
     return response
 
 @app.route('/toggle', methods=['GET', 'POST'])
 def trigger_toggle():
+    require_token()
     timer_state["last_command"] = "toggle"
     # Redirect back to home if accessed via browser button
-    return render_template_string(HTML_PAGE)
+    return render_template_string(HTML_PAGE, token=AUTH_TOKEN or "")
 
 @app.route('/reset', methods=['GET', 'POST'])
 def trigger_reset():
+    require_token()
     timer_state["last_command"] = "reset"
-    return render_template_string(HTML_PAGE)
+    return render_template_string(HTML_PAGE, token=AUTH_TOKEN or "")
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--auth-token", default=None)
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=5000)
+    args = parser.parse_args()
+
+    AUTH_TOKEN = args.auth_token
+    app.run(host=args.host, port=args.port)
