@@ -8,7 +8,7 @@ python3 timerbar.py --duration-minutes 10 --server-url <server_URL> --auth-token
 ## Start server
 python3 server.py --auth-token <token> --host 0.0.0.0 --port 5000 --cert cert.pem --key key.pem
 
-## Access conroll page
+## Access control page
 https://<server_URL>/?token=<token>
 
 ## Warning!
