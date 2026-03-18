@@ -7,10 +7,8 @@ import threading
 import queue
 
 class SteadyTopTimer:
-    def __init__(self, duration_seconds=600, server_url=None, auth_token=None, ca_cert=None, start_fade=15, end_fade=45):
+    def __init__(self, duration_seconds=600, server_url=None, start_fade=15, end_fade=45):
         self.server_url = server_url
-        self.auth_token = auth_token
-        self.ca_cert = ca_cert
         
         self.start_fade = start_fade
         self.end_fade = end_fade
@@ -81,8 +79,7 @@ class SteadyTopTimer:
         def _poll_loop():
             while not self.poll_stop.is_set():
                 try:
-                    headers = {"X-Auth-Token": self.auth_token} if self.auth_token else {}
-                    response = requests.get(f"{self.server_url}/status", timeout=0.5, headers=headers, verify=self.ca_cert or True)
+                    response = requests.get(f"{self.server_url}/status", timeout=0.5)
                     if response.status_code == 200:
                         cmd = response.json().get("last_command")
                         if cmd in ("toggle", "reset"): self.cmd_queue.put(cmd)
@@ -160,8 +157,6 @@ if __name__ == "__main__":
     parser.add_argument("--start-fade", type=int, default=15)
     parser.add_argument("--end-fade", type=int, default=45)
     parser.add_argument("--server-url", default=None)
-    parser.add_argument("--auth-token", default=None)
-    parser.add_argument("--ca-cert", default=None)
     
     args = parser.parse_args()
     SteadyTopTimer(
@@ -169,6 +164,4 @@ if __name__ == "__main__":
         start_fade=args.start_fade,
         end_fade=args.end_fade,
         server_url=args.server_url,
-        auth_token=args.auth_token,
-        ca_cert=args.ca_cert,
     )

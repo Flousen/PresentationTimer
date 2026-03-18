@@ -1,5 +1,5 @@
 import argparse
-from flask import Flask, jsonify, render_template_string, request, abort, redirect, url_for
+from flask import Flask, jsonify, render_template_string, redirect, url_for
 
 app = Flask(__name__)
 
@@ -27,69 +27,39 @@ HTML_PAGE = """
 <body>
     <h1>Timer Remote</h1>
     <form action="/toggle" method="POST">
-        <input type="hidden" name="token" value="{{ token }}">
         <button type="submit" class="btn btn-toggle">START / PAUSE</button>
     </form>
     <form action="/reset" method="POST">
-        <input type="hidden" name="token" value="{{ token }}">
         <button type="submit" class="btn btn-reset">RESET</button>
     </form>
 </body>
 </html>
 """
 
-AUTH_TOKEN = None
-
-def require_token():
-    if not AUTH_TOKEN:
-        abort(500, description="Server requires --auth-token")
-    token = (
-        request.headers.get("X-Auth-Token")
-        or request.args.get("token")
-        or request.form.get("token")
-    )
-    if token != AUTH_TOKEN:
-        abort(403)
-
 @app.route('/')
 def index():
-    require_token()
-    return render_template_string(HTML_PAGE, token=AUTH_TOKEN or "")
+    return render_template_string(HTML_PAGE)
 
 @app.route('/status', methods=['GET'])
 def get_status():
-    require_token()
     response = jsonify(timer_state.copy())
     timer_state["last_command"] = None 
     return response
 
 @app.route('/toggle', methods=['GET', 'POST'])
 def trigger_toggle():
-    require_token()
     timer_state["last_command"] = "toggle"
-    token = request.args.get("token") or request.form.get("token") or ""
-    return redirect(url_for("index", token=token))
+    return redirect(url_for("index"))
 
 @app.route('/reset', methods=['GET', 'POST'])
 def trigger_reset():
-    require_token()
     timer_state["last_command"] = "reset"
-    token = request.args.get("token") or request.form.get("token") or ""
-    return redirect(url_for("index", token=token))
+    return redirect(url_for("index"))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--auth-token", default=None)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=5000)
-    parser.add_argument("--cert", default=None, help="Path to TLS certificate (PEM)")
-    parser.add_argument("--key", default=None, help="Path to TLS private key (PEM)")
     args = parser.parse_args()
 
-    AUTH_TOKEN = args.auth_token
-    ssl_context = None
-    if args.cert or args.key:
-        if not (args.cert and args.key):
-            parser.error("--cert and --key must be provided together")
-        ssl_context = (args.cert, args.key)
-    app.run(host=args.host, port=args.port, ssl_context=ssl_context)
+    app.run(host=args.host, port=args.port)
